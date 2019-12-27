@@ -1,0 +1,290 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>微信充值明细</title>
+    <link href="css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="css/common.css">
+    <script src="js/jquery.min.js"></script>
+    <script src="js/bootstrap.min.js"></script>
+    <script src="js/MJ_JSComment.js"></script>
+    <script src="js/myStorage.js"></script>
+    <script type="text/javascript" src="js/alertPopShow.js"></script>
+
+    <link href="https://cdn.bootcss.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.bootcss.com/bootstrap-datetimepicker/4.17.47/css/bootstrap-datetimepicker.min.css" rel="stylesheet">
+    <script src="https://cdn.bootcss.com/jquery/3.3.1/jquery.js"></script>
+    <script src="https://cdn.bootcss.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <script src="https://cdn.bootcss.com/moment.js/2.22.0/moment-with-locales.js"></script>
+    <script src="https://cdn.bootcss.com/bootstrap-datetimepicker/4.17.47/js/bootstrap-datetimepicker.min.js"></script>
+    <!--table-->
+    <link href="https://unpkg.com/bootstrap-table@1.15.4/dist/bootstrap-table.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/bootstrap-table@1.15.4/dist/bootstrap-table.min.js"></script>
+    <script src="https://cdn.bootcss.com/bootstrap-table/1.11.1/locale/bootstrap-table-zh-CN.min.js"></script>
+
+    <style>
+        .myrow {
+            display: flex;
+            flex-direction: row;
+        }
+
+        table td, th {
+            text-align: center;
+            vertical-align: middle !important;
+        }
+
+        .top {
+            padding-top: 20px !important;
+        }
+        .pull-right.pagination-detail{
+            display:none;
+        }
+    </style>
+
+</head>
+
+<body style="padding-top:20px">
+    <div class="container-fluid">
+
+        <div class="myrow">
+            <span class='input-group date' style="width: 20em;" id='datetimepicker1'>
+                <input type='text' class="timeInput form-control" placeholder="请选择时间" id="startTime" />
+                <span class="input-group-addon">
+                    <span class="glyphicon glyphicon-calendar"></span>
+                </span>
+            </span>
+
+
+            <button class="btn btn-info" style="width: 5em;margin-left:10px;" onclick="onSearch()">查询</button>
+        </div>
+        <!--表-->
+        <div class="row" style="padding-top:20px; float: none;">
+            <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+                <table id="table" class="table table-bordered" data-pagination="true">
+                    <thead style="background-color:#C4E2FE;">
+                        <tr>
+                            <th data-field="rechargetime">日期</th>
+                            <th data-field="rechargeamount">充值金额（元）</th>
+                            <th data-field="rechargetype">备注</th>
+                            <th data-field="do">操作</th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+        <div class="row" style="padding-top:20px; float: none;">
+            <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12" style="color:red">
+                <span style="float:right;"><span>余额：</span><span id="cardMoney">0</span>元</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title" id="myModalLabel">二次退款信息确认</h4>
+                </div>
+                <div class="modal-body">
+                    <table id="table2" class="table table-bordered" align="center">
+                        <thead style="background-color:#C4E2FE;">
+                            <tr>
+                                <th data-field="money">退款金额（元）</th>
+                            </tr>
+                        </thead>
+                    </table>
+                    <div class="top">退款原因：</div>
+                    <textarea rows="3" class="form-control" placeholder="因例辞职" id="reason"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">取消</button>
+                    <button type="button"
+                            class="btn btn-primary"
+                            data-dismiss="modal"
+                            data-target=".bs-example-modal-sm"
+                            onclick="OrderRequest(this)"
+                            >
+                        确定
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- Modal -->
+        <!-- Modal2 -->
+        <!--<div class="modal fade bs-example-modal-sm" tabindex="-1" role="dialog" aria-labelledby="mySmallModalLabel2">
+            <div class="modal-dialog modal-sm" role="document">
+                <div class="modal-content">
+                    ...
+                </div>
+            </div>
+        </div>-->
+            <!-- Modal2 -->
+        </div>
+        <script>
+            var $table = $('#table');
+            var $table2 = $('#table2');
+            var data;
+            var tableInfo;
+            var PhoneNo;
+            var OrderNo;
+            var RefundAmout;
+            var startTime;
+            startTime = nowDate();
+            //var code ='666886';
+            var code = GetQueryString("code") || myStorage.getItem('code');
+
+            $(function () {
+                //日历
+                $('#startTime').datetimepicker({
+                    format: 'YYYY-MM',
+                    locale: moment.locale('zh-cn'),
+
+                });
+                Firstajax();
+            });
+            //操作退款
+            function OrderRequest(obj) {
+                let RefundMemo = $('#reason').val();
+
+                console.log(RefundMemo, RefundAmout, PhoneNo, OrderNo);
+                $.ajax({
+                    type: "post",
+                    contentType: 'application/x-www-form-urlencoded',
+                    url: "http://183.236.246.246:9230/NHPay_Refund/api/WXQueryOrderRequest",
+                    data: {
+                        RefundAmout,
+                        RefundMemo,
+                        OrderNo,
+                        PhoneNo,
+                    },
+                    success: function (data) {
+                        let info = JSON.parse(data);
+                        console.log(info);
+                        //alert(info.ReturnMessage);
+                        webToast(info.ReturnMessage,"middle",3000);
+
+                        if(info.ReturnCode!='9999'){
+                            myStorage.setItem('RefundAmout',RefundAmout);
+                            myStorage.setItem('RefundMemo',RefundMemo);
+                            myStorage.setItem('OrderNo',OrderNo);
+                            myStorage.setItem('PhoneNo',PhoneNo);
+
+                            console.log(
+                                info.ReturnCode,
+                                myStorage.getItem('RefundAmout'),
+                                myStorage.getItem('RefundMemo'),
+                                myStorage.getItem('OrderNo'),
+                                myStorage.getItem('PhoneNo')
+                            )
+                        }
+                    }
+                });
+            }
+            //第一次进入-退款情况
+            function refundStatus(){
+                if(myStorage.getItem('RefundAmout')&&myStorage.getItem('RefundMemo')&&myStorage.getItem('OrderNo')&&myStorage.getItem('PhoneNo')){
+                    console.log('第一次进入');
+                    $.ajax({
+                        type: "post",
+                        contentType: 'application/x-www-form-urlencoded',
+                        url: "http://183.236.246.246:9230/NHPay_Refund/api/WXQueryOrderRequest",
+                        data: {
+                            RefundAmout:myStorage.getItem('RefundAmout'),
+                            RefundMemo:myStorage.getItem('RefundMemo'),
+                            OrderNo:myStorage.getItem('OrderNo'),
+                            PhoneNo:myStorage.getItem('PhoneNo')
+                        },
+                        success: function (data) {
+                            let info = JSON.parse(data);
+                            console.log(info);
+                            //alert(info.ReturnMessage);
+                            webToast(info.ReturnMessage,"middle",3000);
+
+                            myStorage.removeItem('RefundAmout');
+                            myStorage.removeItem('RefundMemo');
+                            myStorage.removeItem('OrderNo');
+                            myStorage.removeItem('PhoneNo');
+                        }
+                    });
+                }
+            }
+            function showTable(data) {
+                $('#table').bootstrapTable({
+                    data: data,
+                    locale: "zh-CN",
+                    paginationDetailHAlign:"right"
+                });
+                $('#table').bootstrapTable('load', data);
+                refundStatus()
+            }
+            function show(project) {
+                let price = project.parentNode.parentNode.cells[1].innerHTML;
+                OrderNo = project.getElementsByTagName('span')[0].innerHTML;
+                RefundAmout = price;
+                let data2 = [
+                    {
+                        'money': price
+                    }
+                ];
+                console.log('price', price, OrderNo)
+                $table2.bootstrapTable('destroy');
+                $table2.bootstrapTable({ data: data2 })
+            }
+            function onSearch() {
+                startTime = document.getElementById('startTime').value;
+                console.log(startTime)
+                Firstajax();
+
+            }
+            function nowDate() {
+                var date = new Date();
+                var seperator = "-";
+                var month = date.getMonth() + 1;
+                var nowDate = date.getFullYear() + seperator + month;
+                return nowDate;
+            }
+            function Firstajax() {
+                console.log(code, startTime);
+                $.ajax({
+                    type: "post",
+                    contentType: 'application/x-www-form-urlencoded',
+                    url: "http://183.236.246.246:9230/NHPay_Refund/api/WXRechargeShow",
+                    data: {
+                        code:code,
+                        rechargedate: startTime
+                    },
+                    success: function (data) {
+
+                        tableInfo = JSON.parse(data);
+                        PhoneNo = tableInfo.phoneNo;
+                        console.log('tableInfo.recharge_dt', PhoneNo, tableInfo.recharge_dt);
+                        document.getElementById('cardMoney').innerHTML=tableInfo.cardMoney;
+                        data2 = tableInfo.recharge_dt;
+                        let tableData = data2.map(item => {
+                            item.do = `<button
+                                        class="btn btn-info" data-toggle="modal"  data-target="#myModal" onclick="show(this)">退款<span class="OrderNo" style="display:none">${item.orderno}</span></button>`
+                        });
+                        //table
+                        showTable(data2);
+
+                    }
+                });
+            }
+            //获取当前地址中的参数
+            function GetQueryString(name) {
+                var reg = new RegExp("(^|&)" + name + "=([^&]*)(&|$)");
+                var r = window.location.search.substr(1).match(reg);
+                if (r != null) {
+                    myStorage.setItem('code', unescape(r[2]));
+                    return unescape(r[2]);
+                }
+                return null;
+            }
+        </script>
+</body>
+
+</html>
