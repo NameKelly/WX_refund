@@ -13,7 +13,7 @@
     <script src="js/myStorage.js"></script>
     <script type="text/javascript" src="js/alertPopShow.js"></script>
 
-    <link href="https://cdn.bootcss.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.bootcss.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet" >
     <link href="https://cdn.bootcss.com/bootstrap-datetimepicker/4.17.47/css/bootstrap-datetimepicker.min.css" rel="stylesheet">
     <script src="https://cdn.bootcss.com/jquery/3.3.1/jquery.js"></script>
     <script src="https://cdn.bootcss.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
@@ -23,6 +23,11 @@
     <link href="https://unpkg.com/bootstrap-table@1.15.4/dist/bootstrap-table.min.css" rel="stylesheet">
     <script src="https://unpkg.com/bootstrap-table@1.15.4/dist/bootstrap-table.min.js"></script>
     <script src="https://cdn.bootcss.com/bootstrap-table/1.11.1/locale/bootstrap-table-zh-CN.min.js"></script>
+    <script type="text/javascript" src="https://cdn.bootcss.com/vConsole/3.3.0/vconsole.min.js"></script>
+    <script>
+        var vConsole = new VConsole();
+        console.log('Hello world');
+    </script>
 
     <style>
         .myrow {
@@ -38,8 +43,9 @@
         .top {
             padding-top: 20px !important;
         }
-        .pull-right.pagination-detail{
-            display:none;
+
+        .pull-right.pagination-detail {
+            display: none;
         }
     </style>
 
@@ -138,7 +144,7 @@
             var $table2 = $('#table2');
             var data;
             var tableInfo;
-            var PhoneNo;
+            var PhoneNo='';
             var OrderNo;
             var RefundAmount;
             var startTime;
@@ -154,16 +160,16 @@
                     locale: moment.locale('zh-cn'),
 
                 })
-                Firstajax();
+                Firstajax('1');
             });
-            $('#startTime').on('dp.change', function (e) {             
+            $('#startTime').on('dp.update', function (e) {             
                 startTime = $(this).val();
-                console.log(startTime)
-                Firstajax();
+                console.log('日期更改',startTime)               
+                Firstajax('2');
             });
             //复选框状态
             function stateFormatter(value, row, index) {
-                console.log('打印', value, row.orderstate, index)
+                //console.log('打印', value, row.orderstate, index)
                 if (row.orderstate == '退款申请中' || row.orderstate == '已退款') {
                     return {
                         disabled: true
@@ -203,7 +209,8 @@
                     OrderNo_Money.push(
                         item.orderno + '|' + item.rechargeamount
                     );
-                    allMoney += item.rechargeamount * 1;
+                    //allMoney += item.rechargeamount * 1;
+                    allMoney = (parseInt(allMoney * 100) + parseInt(item.rechargeamount * 1 * 100)) / 100;//防止精度丢失
                 })
                 console.log('getSelections: ' + checkData, typeof checkData, OrderNo_Money, OrderNo_Money.join(','));
                 let OrderNo_Money2 = OrderNo_Money.join(',');
@@ -251,7 +258,7 @@
             }
             //第一次进入-退款情况
             function refundStatus(){
-                if (myStorage.getItem('RefundAmount')&&myStorage.getItem('RefundMemo')&&myStorage.getItem('OrderNo')&&myStorage.getItem('PhoneNo')){
+                if (myStorage.getItem('RefundAmount') && myStorage.getItem('RefundMemo') && myStorage.getItem('OrderNo_Money')&&myStorage.getItem('PhoneNo')){
                     console.log('第一次进入');
                     $.ajax({
                         type: "post",
@@ -291,8 +298,10 @@
                 //OrderNo = project.getElementsByTagName('span')[0].innerHTML;
                 let price = 0;
                 let checkData = $table.bootstrapTable('getAllSelections');
+                console.log('111111', JSON.stringify(checkData))
                 checkData.map(item => {
-                    price += item.rechargeamount*1
+                    //price += item.rechargeamount*1
+                    price = (parseInt(price * 100) + parseInt(item.rechargeamount * 1 * 100)) / 100;
                 })
                 
                 RefundAmount = price;
@@ -307,12 +316,7 @@
                 $table2.bootstrapTable({ data: data2 })
                 $("#RefundAmount" ).val(RefundAmount);
             }
-            function onSearch() {
-                startTime = document.getElementById('startTime').value;
-                console.log(startTime)
-                Firstajax();
-
-            }
+           
             function handleRefund() {
                 console.log('退款')
             }
@@ -324,15 +328,18 @@
                 document.getElementById('startTime').value = nowDate;
                 return nowDate;
             }
-            function Firstajax() {
-                console.log(code, startTime);
+            function Firstajax(times) {
+               
+                console.log('code',code, startTime);
                 $.ajax({
                     type: "post",
                     contentType: 'application/x-www-form-urlencoded',
                     url: "http://183.236.246.246:9230/NHPay_Refund/api/WXRechargeShow",
                     data: {
-                        code:code,
-                        rechargedate: startTime
+                        code,
+                        rechargedate: startTime,
+                        times,
+                        phoneno: PhoneNo
                     },
                     success: function (data) {
 
