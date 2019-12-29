@@ -57,18 +57,27 @@
             </span>
 
 
-            <button class="btn btn-info" style="width: 5em;margin-left:10px;" onclick="onSearch()">查询</button>
+            <!--<button class="btn btn-info" style="width: 5em;margin-left:10px;" onclick="onSearch()">查询</button>-->
+            <button class="btn btn-info" style="width: 5em;margin-left:10px;" data-toggle="modal"  data-target="#myModal" onclick="show(this)">退款</button>
         </div>
         <!--表-->
         <div class="row" style="padding-top:20px; float: none;">
             <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
-                <table id="table" class="table table-bordered" data-pagination="true">
+                <table id="table" 
+                       class="table table-bordered table-condensed" 
+                   
+                       data-row-style="rowStyle" 
+                       data-click-to-select="true" 
+                       data-toolbar="#toolbar" 
+                       data-height="550">
                     <thead style="background-color:#C4E2FE;">
                         <tr>
+                            <th data-checkbox="true" data-formatter="stateFormatter" data-field="state"></th>
                             <th data-field="rechargetime">日期</th>
                             <th data-field="rechargeamount">充值金额（元）</th>
                             <th data-field="rechargetype">备注</th>
-                            <th data-field="do">操作</th>
+                            <th data-field="orderstate">状态</th>
+                            <!--<th data-field="do">操作</th>-->
                         </tr>
                     </thead>
                 </table>
@@ -131,8 +140,9 @@
             var tableInfo;
             var PhoneNo;
             var OrderNo;
-            var RefundAmout;
+            var RefundAmount;
             var startTime;
+            var OrderNo_Money = [];
             startTime = nowDate();
             //var code ='666886';
             var code = GetQueryString("code") || myStorage.getItem('code');
@@ -143,23 +153,78 @@
                     format: 'YYYY-MM',
                     locale: moment.locale('zh-cn'),
 
-                });
+                })
                 Firstajax();
             });
+            $('#startTime').on('dp.change', function (e) {             
+                startTime = $(this).val();
+                console.log(startTime)
+                Firstajax();
+            });
+            //复选框状态
+            function stateFormatter(value, row, index) {
+                console.log('打印', value, row.orderstate, index)
+                if (row.orderstate == '退款申请中' || row.orderstate == '已退款') {
+                    return {
+                        disabled: true
+                    }
+                } else {
+                    return {
+                        disabled: false
+                    }
+                }
+              
+                return value
+            }
+            //行样式
+            function rowStyle(row, index) {
+                
+                if (row.orderstate == '退款申请中' || row.orderstate == '已退款') {
+                    return {
+                        css: {
+                            background: '#F3F3F3'
+                        }
+                    }
+                } else {
+                    return {
+                        css: {
+                            background: 'white'
+                        }
+                    }
+                }
+              
+            }
+
             //操作退款
             function OrderRequest(obj) {
+                let allMoney = 0;//所选汇总金额
+                let checkData = $table.bootstrapTable('getAllSelections');
+                checkData.map(item => {
+                    OrderNo_Money.push(
+                        item.orderno + '|' + item.rechargeamount
+                    );
+                    allMoney += item.rechargeamount * 1;
+                })
+                console.log('getSelections: ' + checkData, typeof checkData, OrderNo_Money, OrderNo_Money.join(','));
+                let OrderNo_Money2 = OrderNo_Money.join(',');
                 let RefundMemo = $('#reason').val();
+                RefundAmount=$("#RefundAmount").val();
 
-                console.log(RefundMemo, RefundAmout, PhoneNo, OrderNo);
+                console.log(RefundMemo, RefundAmount, PhoneNo, OrderNo_Money2);
+                if (RefundAmount > allMoney) {
+                    //alert('退款金额不可大于所选汇总金额')
+                    webToast('退款金额不可大于所选汇总金额', "middle", 3000);
+                    return;
+                }
                 $.ajax({
                     type: "post",
                     contentType: 'application/x-www-form-urlencoded',
                     url: "http://183.236.246.246:9230/NHPay_Refund/api/WXQueryOrderRequest",
                     data: {
-                        RefundAmout,
-                        RefundMemo,
-                        OrderNo,
-                        PhoneNo,
+                        RefundAmount,//申请退款金额
+                        RefundMemo,//退款原因
+                        OrderNo_Money: OrderNo_Money2,//订单编号+订单对应的金额
+                        PhoneNo,//手机号码
                     },
                     success: function (data) {
                         let info = JSON.parse(data);
@@ -168,16 +233,16 @@
                         webToast(info.ReturnMessage,"middle",3000);
 
                         if(info.ReturnCode!='9999'){
-                            myStorage.setItem('RefundAmout',RefundAmout);
+                            myStorage.setItem('RefundAmount', RefundAmount);
                             myStorage.setItem('RefundMemo',RefundMemo);
-                            myStorage.setItem('OrderNo',OrderNo);
+                            myStorage.setItem('OrderNo_Money', OrderNo_Money2);
                             myStorage.setItem('PhoneNo',PhoneNo);
 
                             console.log(
                                 info.ReturnCode,
-                                myStorage.getItem('RefundAmout'),
+                                myStorage.getItem('RefundAmount'),
                                 myStorage.getItem('RefundMemo'),
-                                myStorage.getItem('OrderNo'),
+                                myStorage.getItem('OrderNo_Money'),
                                 myStorage.getItem('PhoneNo')
                             )
                         }
@@ -186,16 +251,16 @@
             }
             //第一次进入-退款情况
             function refundStatus(){
-                if(myStorage.getItem('RefundAmout')&&myStorage.getItem('RefundMemo')&&myStorage.getItem('OrderNo')&&myStorage.getItem('PhoneNo')){
+                if (myStorage.getItem('RefundAmount')&&myStorage.getItem('RefundMemo')&&myStorage.getItem('OrderNo')&&myStorage.getItem('PhoneNo')){
                     console.log('第一次进入');
                     $.ajax({
                         type: "post",
                         contentType: 'application/x-www-form-urlencoded',
                         url: "http://183.236.246.246:9230/NHPay_Refund/api/WXQueryOrderRequest",
                         data: {
-                            RefundAmout:myStorage.getItem('RefundAmout'),
+                            RefundAmount: myStorage.getItem('RefundAmount'),
                             RefundMemo:myStorage.getItem('RefundMemo'),
-                            OrderNo:myStorage.getItem('OrderNo'),
+                            OrderNo_Money: myStorage.getItem('OrderNo_Money'),
                             PhoneNo:myStorage.getItem('PhoneNo')
                         },
                         success: function (data) {
@@ -204,9 +269,9 @@
                             //alert(info.ReturnMessage);
                             webToast(info.ReturnMessage,"middle",3000);
 
-                            myStorage.removeItem('RefundAmout');
+                            myStorage.removeItem('RefundAmount');
                             myStorage.removeItem('RefundMemo');
-                            myStorage.removeItem('OrderNo');
+                            myStorage.removeItem('OrderNo_Money');
                             myStorage.removeItem('PhoneNo');
                         }
                     });
@@ -216,23 +281,31 @@
                 $('#table').bootstrapTable({
                     data: data,
                     locale: "zh-CN",
-                    paginationDetailHAlign:"right"
+                    //paginationDetailHAlign:"right"
                 });
                 $('#table').bootstrapTable('load', data);
                 refundStatus()
             }
             function show(project) {
-                let price = project.parentNode.parentNode.cells[1].innerHTML;
-                OrderNo = project.getElementsByTagName('span')[0].innerHTML;
-                RefundAmout = price;
+                //let price = project.parentNode.parentNode.cells[1].innerHTML;
+                //OrderNo = project.getElementsByTagName('span')[0].innerHTML;
+                let price = 0;
+                let checkData = $table.bootstrapTable('getAllSelections');
+                checkData.map(item => {
+                    price += item.rechargeamount*1
+                })
+                
+                RefundAmount = price;
                 let data2 = [
                     {
-                        'money': price
+                        'money': `<input type="text" class="form-control" id="RefundAmount" style="text-align:center"/>`
                     }
                 ];
-                console.log('price', price, OrderNo)
+
+                console.log('price', price, RefundAmount)
                 $table2.bootstrapTable('destroy');
                 $table2.bootstrapTable({ data: data2 })
+                $("#RefundAmount" ).val(RefundAmount);
             }
             function onSearch() {
                 startTime = document.getElementById('startTime').value;
@@ -240,11 +313,15 @@
                 Firstajax();
 
             }
+            function handleRefund() {
+                console.log('退款')
+            }
             function nowDate() {
                 var date = new Date();
                 var seperator = "-";
                 var month = date.getMonth() + 1;
                 var nowDate = date.getFullYear() + seperator + month;
+                document.getElementById('startTime').value = nowDate;
                 return nowDate;
             }
             function Firstajax() {
@@ -264,15 +341,17 @@
                         console.log('tableInfo.recharge_dt', PhoneNo, tableInfo.recharge_dt);
                         document.getElementById('cardMoney').innerHTML=tableInfo.cardMoney;
                         data2 = tableInfo.recharge_dt;
-                        let tableData = data2.map(item => {
-                            item.do = `<button
-                                        class="btn btn-info" data-toggle="modal"  data-target="#myModal" onclick="show(this)">退款<span class="OrderNo" style="display:none">${item.orderno}</span></button>`
-                        });
+                        //let tableData = data2.map(item => {
+                        //    item.do = `<button
+                        //                class="btn btn-info" data-toggle="modal"  data-target="#myModal" onclick="show(this)">退款<span class="OrderNo" style="display:none">${item.orderno}</span></button>`
+                          
+                        //});
                         //table
                         showTable(data2);
 
                     }
                 });
+
             }
             //获取当前地址中的参数
             function GetQueryString(name) {
